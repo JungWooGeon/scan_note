@@ -56,9 +56,11 @@ private open class ScannerApiPigeonCodec : StandardMessageCodec() {
   }
 }
 
+
 /** Generated interface from Pigeon that represents a handler of messages from Flutter. */
 interface ScannerApi {
   fun echo(message: String): String
+  fun scan(callback: (Result<List<String?>>) -> Unit)
 
   companion object {
     /** The codec used by ScannerApi. */
@@ -81,6 +83,24 @@ interface ScannerApi {
               ScannerApiPigeonUtils.wrapError(exception)
             }
             reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.scan_note.ScannerApi.scan$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            api.scan{ result: Result<List<String?>> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(ScannerApiPigeonUtils.wrapError(error))
+              } else {
+                val data = result.getOrNull()
+                reply.reply(ScannerApiPigeonUtils.wrapResult(data))
+              }
+            }
           }
         } else {
           channel.setMessageHandler(null)

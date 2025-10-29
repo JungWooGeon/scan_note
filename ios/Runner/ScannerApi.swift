@@ -85,9 +85,11 @@ class ScannerApiPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
   static let shared = ScannerApiPigeonCodec(readerWriter: ScannerApiPigeonCodecReaderWriter())
 }
 
+
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol ScannerApi {
   func echo(message: String) throws -> String
+  func scan(completion: @escaping (Result<[String?], Error>) -> Void)
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -110,6 +112,21 @@ class ScannerApiSetup {
       }
     } else {
       echoChannel.setMessageHandler(nil)
+    }
+    let scanChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.scan_note.ScannerApi.scan\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      scanChannel.setMessageHandler { _, reply in
+        api.scan { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      scanChannel.setMessageHandler(nil)
     }
   }
 }

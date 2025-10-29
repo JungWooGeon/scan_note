@@ -58,4 +58,13 @@ flutter {
 }
 
 dependencies {
+    // ML Kit 문서 스캐너 (Play Services)
+    implementation "com.google.android.gms:play-services-mlkit-document-scanner:16.0.0"
+
+    // Activity Result API 편의 KTX
+    implementation "androidx.activity:activity-ktx:1.9.2"
+
+    // Kotlin 코루틴 (scan()을 깔끔히 감싸기 위함)
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
 }
+
