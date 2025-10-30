@@ -61,6 +61,7 @@ private open class ScannerApiPigeonCodec : StandardMessageCodec() {
 interface ScannerApi {
   fun echo(message: String): String
   fun scan(callback: (Result<List<String?>>) -> Unit)
+  fun ocr(fileUris: List<String?>, callback: (Result<List<String?>>) -> Unit)
 
   companion object {
     /** The codec used by ScannerApi. */
@@ -93,6 +94,26 @@ interface ScannerApi {
         if (api != null) {
           channel.setMessageHandler { _, reply ->
             api.scan{ result: Result<List<String?>> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(ScannerApiPigeonUtils.wrapError(error))
+              } else {
+                val data = result.getOrNull()
+                reply.reply(ScannerApiPigeonUtils.wrapResult(data))
+              }
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.scan_note.ScannerApi.ocr$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val fileUrisArg = args[0] as List<String?>
+            api.ocr(fileUrisArg) { result: Result<List<String?>> ->
               val error = result.exceptionOrNull()
               if (error != null) {
                 reply.reply(ScannerApiPigeonUtils.wrapError(error))

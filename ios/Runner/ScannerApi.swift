@@ -90,6 +90,7 @@ class ScannerApiPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
 protocol ScannerApi {
   func echo(message: String) throws -> String
   func scan(completion: @escaping (Result<[String?], Error>) -> Void)
+  func ocr(fileUris: [String?], completion: @escaping (Result<[String?], Error>) -> Void)
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -127,6 +128,23 @@ class ScannerApiSetup {
       }
     } else {
       scanChannel.setMessageHandler(nil)
+    }
+    let ocrChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.scan_note.ScannerApi.ocr\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      ocrChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let fileUrisArg = args[0] as! [String?]
+        api.ocr(fileUris: fileUrisArg) { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      ocrChannel.setMessageHandler(nil)
     }
   }
 }

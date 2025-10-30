@@ -66,5 +66,8 @@ dependencies {
 
     // Kotlin 코루틴 (scan()을 깔끔히 감싸기 위함)
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
+
+    // ML Kit 텍스트 인식
+    implementation "com.google.mlkit:text-recognition-korean:16.0.0"
 }
 
