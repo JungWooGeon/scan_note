@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
@@ -85,6 +84,7 @@ class _ScanTestScreenState extends State<ScanTestScreen> {
     });
   }
 
+  /// PDF 생성 후 네이티브(ScannerApi.saveToDownloads)로 Downloads에 저장
   Future<void> _exportPdfSave() async {
     if (_uris.isEmpty) {
       rootMessengerKey.currentState?.showSnackBar(
@@ -117,22 +117,26 @@ class _ScanTestScreenState extends State<ScanTestScreen> {
           ),
         );
       }
-      final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/scan_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final out = File(path);
-      await out.writeAsBytes(await doc.save());
+
+      final pdfBytes = await doc.save();
+      final filename = 'scan_${DateTime.now().millisecondsSinceEpoch}.pdf';
+
+      // ✅ 네이티브 경로로 저장 (API29+는 MediaStore Downloads, 이하 버전은 퍼블릭 Downloads)
+      final savedUri = await _scannerApi.saveToDownloads(pdfBytes, filename);
+
       rootMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('PDF 저장 완료: $path')),
+        SnackBar(content: Text('PDF 저장 완료: $savedUri')),
       );
     } catch (e) {
       rootMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('PDF 생성 실패: $e')),
+        SnackBar(content: Text('PDF 저장 실패: $e')),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  /// PDF 생성 후 공유 시트로 공유
   Future<void> _exportPdfShare() async {
     if (_uris.isEmpty) return;
     setState(() => _busy = true);
@@ -230,7 +234,8 @@ class _ScanTestScreenState extends State<ScanTestScreen> {
             imageWidget = Image.file(
               File(uri.toFilePath()),
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Text('이미지 표시 실패: $uriStr'),
+              errorBuilder: (_, __, ___) =>
+                  Text('이미지 표시 실패: $uriStr'),
             );
           } else {
             imageWidget = ListTile(
@@ -258,7 +263,9 @@ class _ScanTestScreenState extends State<ScanTestScreen> {
                           onPressed: () {
                             setState(() {
                               _uris.removeAt(index);
-                              if (index < _texts.length) _texts.removeAt(index);
+                              if (index < _texts.length) {
+                                _texts.removeAt(index);
+                              }
                             });
                           },
                           icon: const Icon(Icons.close),

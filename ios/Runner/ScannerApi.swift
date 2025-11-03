@@ -91,6 +91,7 @@ protocol ScannerApi {
   func echo(message: String) throws -> String
   func scan(completion: @escaping (Result<[String?], Error>) -> Void)
   func ocr(fileUris: [String?], completion: @escaping (Result<[String?], Error>) -> Void)
+  func saveToDownloads(bytes: FlutterStandardTypedData, filename: String, completion: @escaping (Result<String, Error>) -> Void)
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -145,6 +146,24 @@ class ScannerApiSetup {
       }
     } else {
       ocrChannel.setMessageHandler(nil)
+    }
+    let saveToDownloadsChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.scan_note.ScannerApi.saveToDownloads\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      saveToDownloadsChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let bytesArg = args[0] as! FlutterStandardTypedData
+        let filenameArg = args[1] as! String
+        api.saveToDownloads(bytes: bytesArg, filename: filenameArg) { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      saveToDownloadsChannel.setMessageHandler(nil)
     }
   }
 }
