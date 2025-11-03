@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import 'bridge/scanner_api.g.dart';
 
-/// 전역 스낵바용 키 (async 갭에서 BuildContext 미사용)
 final rootMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() {
@@ -39,10 +39,10 @@ class _ScanTestScreenState extends State<ScanTestScreen> {
   Future<void> _startScan() async {
     setState(() => _busy = true);
     try {
-      final result = await _scannerApi.scan(); // List<String?>
+      final result = await _scannerApi.scan();
       if (!mounted) return;
       setState(() {
-        _uris = result.whereType<String>().toList(); // null 제거
+        _uris = result.whereType<String>().toList();
         _texts = [];
       });
     } catch (e) {
@@ -63,10 +63,10 @@ class _ScanTestScreenState extends State<ScanTestScreen> {
     }
     setState(() => _busy = true);
     try {
-      final texts = await _scannerApi.ocr(_uris); // List<String?>
+      final texts = await _scannerApi.ocr(_uris);
       if (!mounted) return;
       setState(() {
-        _texts = texts.map((e) => e ?? '').toList(); // null -> 빈문자
+        _texts = texts.map((e) => e ?? '').toList();
       });
     } catch (e) {
       rootMessengerKey.currentState?.showSnackBar(
@@ -84,7 +84,51 @@ class _ScanTestScreenState extends State<ScanTestScreen> {
     });
   }
 
-  /// PDF 생성 후 네이티브(ScannerApi.saveToDownloads)로 Downloads에 저장
+  // ---- PDF 공통: 한글 폰트 로드 + 문서 생성 헬퍼 ----
+  Future<pw.Document> _buildPdfDocument() async {
+    final fontRegular = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/NotoSansKR-Regular.ttf'),
+    );
+    final fontBold = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/NotoSansKR-Bold.ttf'),
+    );
+
+    final doc = pw.Document(
+      theme: pw.ThemeData.withFont(
+        base: fontRegular,
+        bold: fontBold,
+      ),
+    );
+
+    for (var i = 0; i < _uris.length; i++) {
+      final file = File(Uri.parse(_uris[i]).toFilePath());
+      final bytes = await file.readAsBytes();
+      final text = (i < _texts.length) ? _texts[i] : '';
+      doc.addPage(
+        pw.Page(
+          margin: const pw.EdgeInsets.all(24),
+          build: (_) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              pw.Expanded(
+                child: pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.contain),
+              ),
+              if (text.isNotEmpty) ...[
+                pw.SizedBox(height: 16),
+                pw.Text(
+                  text,
+                  style: const pw.TextStyle(fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    return doc;
+  }
+
+  /// PDF 생성 후 네이티브로 Downloads에 저장
   Future<void> _exportPdfSave() async {
     if (_uris.isEmpty) {
       rootMessengerKey.currentState?.showSnackBar(
@@ -94,36 +138,11 @@ class _ScanTestScreenState extends State<ScanTestScreen> {
     }
     setState(() => _busy = true);
     try {
-      final doc = pw.Document();
-      for (var i = 0; i < _uris.length; i++) {
-        final file = File(Uri.parse(_uris[i]).toFilePath());
-        final bytes = await file.readAsBytes();
-        final text = (i < _texts.length) ? _texts[i] : '';
-        doc.addPage(
-          pw.Page(
-            margin: const pw.EdgeInsets.all(24),
-            build: (_) => pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: [
-                pw.Expanded(
-                  child: pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.contain),
-                ),
-                if (text.isNotEmpty) ...[
-                  pw.SizedBox(height: 16),
-                  pw.Text(text, style: const pw.TextStyle(fontSize: 12)),
-                ],
-              ],
-            ),
-          ),
-        );
-      }
-
+      final doc = await _buildPdfDocument(); // 👈 폰트 적용된 문서
       final pdfBytes = await doc.save();
       final filename = 'scan_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
-      // ✅ 네이티브 경로로 저장 (API29+는 MediaStore Downloads, 이하 버전은 퍼블릭 Downloads)
       final savedUri = await _scannerApi.saveToDownloads(pdfBytes, filename);
-
       rootMessengerKey.currentState?.showSnackBar(
         SnackBar(content: Text('PDF 저장 완료: $savedUri')),
       );
@@ -136,34 +155,12 @@ class _ScanTestScreenState extends State<ScanTestScreen> {
     }
   }
 
-  /// PDF 생성 후 공유 시트로 공유
+  /// PDF 생성 후 공유
   Future<void> _exportPdfShare() async {
     if (_uris.isEmpty) return;
     setState(() => _busy = true);
     try {
-      final doc = pw.Document();
-      for (var i = 0; i < _uris.length; i++) {
-        final file = File(Uri.parse(_uris[i]).toFilePath());
-        final bytes = await file.readAsBytes();
-        final text = (i < _texts.length) ? _texts[i] : '';
-        doc.addPage(
-          pw.Page(
-            margin: const pw.EdgeInsets.all(24),
-            build: (_) => pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-              children: [
-                pw.Expanded(
-                  child: pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.contain),
-                ),
-                if (text.isNotEmpty) ...[
-                  pw.SizedBox(height: 16),
-                  pw.Text(text, style: const pw.TextStyle(fontSize: 12)),
-                ],
-              ],
-            ),
-          ),
-        );
-      }
+      final doc = await _buildPdfDocument(); // 👈 폰트 적용된 문서
       final bytes = await doc.save();
       await Printing.sharePdf(
         bytes: bytes,
@@ -254,7 +251,6 @@ class _ScanTestScreenState extends State<ScanTestScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 개별 삭제 버튼
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
